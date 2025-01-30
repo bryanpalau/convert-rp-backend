@@ -1,4 +1,3 @@
-# Open vercel.json and replace content with:
 {
   "version": 2,
   "builds": [
