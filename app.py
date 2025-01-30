@@ -5,13 +5,13 @@ from werkzeug.utils import secure_filename
 from docx import Document
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, allow_headers=["Content-Type"])
 
-# ✅ Use Vercel's /tmp/ directory
+# ✅ Explicitly allow requests from GitHub Pages
+CORS(app, resources={r"/upload": {"origins": "*"}}, allow_headers=["Content-Type"])
+
 UPLOAD_FOLDER = "/tmp/uploads"
 OUTPUT_FOLDER = "/tmp/outputs"
 
-# ✅ Ensure folders exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
