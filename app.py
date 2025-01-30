@@ -1,9 +1,12 @@
 from flask import Flask, request, send_file
+from flask_cors import CORS  # Import CORS
 import os
 from werkzeug.utils import secure_filename
 from docx import Document
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -28,9 +31,6 @@ def upload_file():
 def process_report_card(filepath):
     """ Process the uploaded .docx file and return the modified file path. """
     doc = Document(filepath)
-    
-    # Placeholder for processing logic (apply conversion rules)
-    # Modify doc based on your rules here...
 
     output_path = os.path.join(OUTPUT_FOLDER, "processed_" + os.path.basename(filepath))
     doc.save(output_path)
