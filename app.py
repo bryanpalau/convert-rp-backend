@@ -1,14 +1,17 @@
 from flask import Flask, request, send_file
-from flask_cors import CORS  # Import CORS
+from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
 from docx import Document
 
 app = Flask(__name__)
-CORS(app, resources={r"/upload": {"origins": "*"}}, allow_headers=["Content-Type"])  # Updated CORS
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, allow_headers=["Content-Type"])
 
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "outputs"
+# ✅ Use Vercel's /tmp/ directory
+UPLOAD_FOLDER = "/tmp/uploads"
+OUTPUT_FOLDER = "/tmp/outputs"
+
+# ✅ Ensure folders exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
