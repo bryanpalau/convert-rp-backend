@@ -6,7 +6,8 @@
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "15mb",
-        "runtime": "python3.9"
+        "runtime": "python3.9",
+        "handler": "app.app"
       }
     }
   ],
@@ -15,5 +16,11 @@
       "source": "/(.*)",
       "destination": "app.py"
     }
-  ]
+  ],
+  "functions": {
+    "app.py": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }

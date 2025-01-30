@@ -41,6 +41,20 @@ def allowed_file(filename: str) -> bool:
     """Check if the file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def copy_cell_format(source_cell, target_cell):
+    """Copy cell formatting from source to target."""
+    try:
+        # Copy paragraph formatting
+        for src_para, tgt_para in zip(source_cell.paragraphs, target_cell.paragraphs):
+            tgt_para.alignment = src_para.alignment
+            for src_run, tgt_run in zip(src_para.runs, target_cell.paragraphs[0].runs):
+                tgt_run.font.name = src_run.font.name
+                tgt_run.font.size = src_run.font.size
+                tgt_run.font.bold = src_run.font.bold
+                tgt_run.font.italic = src_run.font.italic
+    except Exception as e:
+        logger.warning(f"Error copying cell format: {str(e)}")
+
 def clean_course_title(title: str) -> str:
     """Enhanced course title cleaning with more precise rules."""
     logger.debug(f"Cleaning course title: {title}")
@@ -59,19 +73,22 @@ def clean_course_title(title: str) -> str:
     
     # Remove grade level and group prefixes more aggressively
     patterns = [
-        r'^Math \d+[A-Z]?(?:-\d+)?-',  # Math prefixes
+        r'^Math \d+[A-Z]?(?:-\d+)?-?',  # Math prefixes
         r'^Science \d+[A-Z]?(?:-\d+)?-?',  # Science prefixes
-        r'(?:G|Grade )\d+(?:-\d+)?-',  # Grade indicators
+        r'(?:G|Grade )\d+(?:-\d+)?-?',  # Grade indicators
         r'^\d{1,2}(?:th)?\s*Grade\s*-?',  # Grade numbers
-        r'(?:Junior|Senior)\s+Electives-',  # Elective prefixes
-        r'Electives \d+ \([^)]+\)-',  # Elective group labels
-        r'Career Planning \d+(?:-\d+)?',  # Career Planning prefixes
-        r'Foreign Language-',  # Foreign Language prefix
+        r'(?:Junior|Senior)\s+Electives-?',  # Elective prefixes
+        r'Electives\s*\d*\s*\([^)]+\)-?',  # Elective group labels
+        r'Career Planning\s*\d+(?:-\d+)?',  # Career Planning prefixes
+        r'Foreign Language-?',  # Foreign Language prefix
         r'Individual Society Environment(?:\s*G\d+(?:-\d+)?)?-?',  # ISE prefix
         r'Military Training(?:\s*G\d+(?:-\d+)?)?-?',  # Military Training prefix
         r'Visual Performing Arts(?:\s*G\d+(?:-\d+)?)?-?',  # VPA prefix
-        r'Group \d+-',  # Group numbers
-        r'\d+[A-Z](?:-\d+)?-?'  # Grade section indicators (e.g., 7A-2)
+        r'Group\s*\d+-?',  # Group numbers
+        r'\d+[A-Z](?:-\d+)?-?',  # Grade section indicators (e.g., 7A-2)
+        r'-\d+$',  # Trailing numbers
+        r'\s*\([^)]*\)',  # Anything in parentheses
+        r'\s*G\d+(?:-\d+)?(?:\s|$)'  # Grade indicators at the end
     ]
     
     for pattern in patterns:
@@ -98,6 +115,7 @@ def process_table(table) -> None:
     logger.debug("Starting table processing")
     courses_by_semester = {}
     current_semester = None
+    header_row = None
     
     # First pass: collect and clean data
     for row_index, row in enumerate(table.rows):
@@ -106,15 +124,25 @@ def process_table(table) -> None:
         if len(cells) > 0:
             logger.debug(f"Processing row {row_index}: {cells}")
         
+        # Store header row for formatting
+        if row_index == 0:
+            header_row = row
+            continue
+        
+        # Detect semester headers
+        if len(cells) > 0:
+            semester_text = ' '.join(cells).upper()
+            if 'SEMESTER' in semester_text:
+                if '1ST' in semester_text or 'FIRST' in semester_text:
+                    current_semester = '1st'
+                elif '2ND' in semester_text or 'SECOND' in semester_text:
+                    current_semester = '2nd'
+                logger.debug(f"Detected semester: {current_semester}")
+                continue
+        
         # Skip rows that don't have enough cells or are headers
         if len(cells) < 3 or any(header in cells[0].lower() for header in ['course title', 'average']):
             logger.debug(f"Skipping row {row_index} - not enough cells or header")
-            continue
-            
-        # Detect semester headers
-        if len(cells) > 0 and any(sem in ' '.join(cells).upper() for sem in ['1ST SEMESTER', '2ND SEMESTER']):
-            current_semester = '1st' if '1ST SEMESTER' in ' '.join(cells).upper() else '2nd'
-            logger.debug(f"Detected semester: {current_semester}")
             continue
             
         try:
@@ -141,7 +169,8 @@ def process_table(table) -> None:
             courses_by_semester[current_semester].append({
                 'title': clean_title,
                 'grade': grade,
-                'gpa': gpa
+                'gpa': gpa,
+                'original_row': row  # Store original row for formatting
             })
             logger.debug(f"Added course to semester {current_semester}")
             
@@ -175,26 +204,34 @@ def process_table(table) -> None:
         
         # Rebuild table with processed courses
         for semester, courses in courses_by_semester.items():
+            if not courses:
+                continue
+                
             logger.debug(f"Adding semester {semester} with {len(courses)} courses")
             
-            # Add semester header if we have courses for this semester
-            if courses:
-                semester_row = table.add_row()
-                semester_cell = semester_row.cells[0]
-                semester_cell.text = f"{semester} Semester"
-                semester_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # Add semester header
+            semester_row = table.add_row()
+            semester_cell = semester_row.cells[0]
+            semester_cell.text = f"{semester} Semester"
+            semester_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Add processed courses
+            for course in courses:
+                new_row = table.add_row()
                 
-                # Add processed courses
-                for course in courses:
-                    new_row = table.add_row()
-                    new_row.cells[0].text = course['title']
-                    new_row.cells[1].text = course['grade']
-                    new_row.cells[2].text = course['gpa']
-                    logger.debug(f"Added course row: {course}")
-                    
-                    # Center align grade and GPA cells
-                    for cell in new_row.cells[1:]:
-                        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                # Copy cell formats from original row if available
+                if 'original_row' in course:
+                    for i, (new_cell, old_cell) in enumerate(zip(new_row.cells, course['original_row'].cells)):
+                        copy_cell_format(old_cell, new_cell)
+                
+                new_row.cells[0].text = course['title']
+                new_row.cells[1].text = course['grade']
+                new_row.cells[2].text = course['gpa']
+                logger.debug(f"Added course row: {course}")
+                
+                # Center align grade and GPA cells
+                for cell in new_row.cells[1:]:
+                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 
     except Exception as e:
         logger.error(f"Error rebuilding table: {str(e)}")
