@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 from docx import Document
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={r"/upload": {"origins": "*"}}, allow_headers=["Content-Type"])  # Updated CORS
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
