@@ -39,27 +39,11 @@ def process_report_card(filepath):
     """Process the uploaded .docx file and apply conversion rules."""
     doc = Document(filepath)
 
-    # ✅ Iterate through paragraphs and modify text based on rules
+    # ✅ Process paragraphs (for individual course titles in text)
     for para in doc.paragraphs:
-        text = para.text.strip()
+        para.text = apply_conversion_rules(para.text)
 
-        # Rule 1: Remove Grade Level Prefixes
-        text = re.sub(r'\b(G\d{1,2}[-\d]*|Grade \d{1,2}|[1-9]0)\b', '', text).strip()
-
-        # Rule 2: Remove Course Group Labels
-        text = re.sub(r'\b(Senior Electives-|Electives \d+ \(G\d+\)-|Career Planning \d+-\d+)\b', '', text).strip()
-
-        # Rule 5: Simplification of Course Titles
-        text = re.sub(r'\b(G\d{1,2}-|G\d{1,2} )\b', '', text).strip()
-
-        # Rule 6: Remove Study Hall Courses
-        if "Study Hall" in text:
-            para.clear()  # Remove the paragraph
-
-        # ✅ Update paragraph text
-        para.text = text
-
-    # ✅ Process tables for duplicate courses, GPA verification
+    # ✅ Process tables (for course lists with grades & GPAs)
     for table in doc.tables:
         process_table(table)
 
@@ -67,6 +51,23 @@ def process_report_card(filepath):
     output_path = os.path.join(OUTPUT_FOLDER, "processed_" + os.path.basename(filepath))
     doc.save(output_path)
     return output_path
+
+def apply_conversion_rules(text):
+    """Applies all conversion rules to a given text."""
+    # Rule 1: Remove Grade Level Prefixes
+    text = re.sub(r'\b(G\d{1,2}[-\d]*|Grade \d{1,2}|[1-9]0)\b', '', text).strip()
+
+    # Rule 2: Remove Course Group Labels
+    text = re.sub(r'\b(Senior Electives-|Electives \d+ \(G\d+\)-|Career Planning \d+-\d+)\b', '', text).strip()
+
+    # Rule 5: Simplify Course Titles
+    text = re.sub(r'\b(G\d{1,2}-|G\d{1,2} )\b', '', text).strip()
+
+    # Rule 6: Remove "Study Hall" courses
+    if "Study Hall" in text:
+        return ""  # Remove the entire course
+
+    return text
 
 def process_table(table):
     """Process tables to remove duplicate courses and check GPA consistency."""
@@ -80,8 +81,8 @@ def process_table(table):
 
         course_title, grade, gpa = cells[0], cells[1], cells[2]
 
-        # ✅ Remove Grade Level Prefix
-        course_title = re.sub(r'\b(G\d{1,2}[-\d]*|Grade \d{1,2}|[1-9]0)\b', '', course_title).strip()
+        # ✅ Apply conversion rules to course title
+        course_title = apply_conversion_rules(course_title)
 
         # ✅ Check for duplicate courses (same Grade & GPA)
         course_key = (course_title, grade, gpa)
@@ -89,6 +90,9 @@ def process_table(table):
             row._element.getparent().remove(row._element)  # Remove duplicate
         else:
             seen_courses[course_key] = True
+
+        # ✅ Update row content
+        row.cells[0].text = course_title
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
