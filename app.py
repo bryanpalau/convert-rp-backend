@@ -6,14 +6,15 @@ from docx import Document
 
 app = Flask(__name__)
 
-# ✅ Explicitly allow requests from GitHub Pages
-CORS(app, resources={r"/upload": {"origins": "*"}}, allow_headers=["Content-Type"])
-
+# ✅ Use Vercel's /tmp/ directory (allowed for writing)
 UPLOAD_FOLDER = "/tmp/uploads"
 OUTPUT_FOLDER = "/tmp/outputs"
 
+# ✅ Ensure folders exist before writing
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+CORS(app, resources={r"/*": {"origins": "*"}}, allow_headers=["Content-Type"])
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
