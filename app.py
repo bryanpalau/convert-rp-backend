@@ -42,7 +42,7 @@ def process_report_card(filepath):
     # ✅ Modify paragraphs directly
     for para in doc.paragraphs:
         new_text = apply_conversion_rules(para.text)
-        if new_text.strip():
+        if new_text.strip():  # Ensure empty lines are removed
             para.clear()
             para.add_run(new_text)
 
@@ -57,11 +57,12 @@ def process_report_card(filepath):
 
 def apply_conversion_rules(text):
     """Applies all conversion rules to a given text."""
+
     # ✅ Remove Grade Level Prefixes
-    text = re.sub(r'\b(G\d{1,2}[-\d]*|Grade \d{1,2}|[1-9]0)\b', '', text).strip()
+    text = re.sub(r'\b(G\d{1,2}[-\d]*|Grade \d{1,2}|[1-9]0|Group \d+)\b', '', text).strip()
 
     # ✅ Remove Course Group Labels
-    text = re.sub(r'\b(Senior Electives-|Electives \d+ \(G\d+\)-|Career Planning \d+-\d+|Junior Electives-|Study Hall-)\b', '', text).strip()
+    text = re.sub(r'\b(Senior Electives-|Electives \d+ \(G\d+\)-|Career Planning \d+-\d+|Junior Electives-|Study Hall-|Foreign Language-|Individual Society Environment G\d+-|Military Training G\d+-)\b', '', text).strip()
 
     # ✅ Simplify Course Titles
     text = re.sub(r'\b(G\d{1,2}-|G\d{1,2} )\b', '', text).strip()
