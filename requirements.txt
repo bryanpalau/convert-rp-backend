@@ -1,5 +1,8 @@
-flask
-python-docx
-werkzeug
-gunicorn
-flask-cors
+flask==3.0.0
+python-docx==0.8.11
+werkzeug==3.0.1
+gunicorn==21.2.0
+flask-cors==4.0.0
+python-dotenv==1.0.0
+typing-extensions==4.9.0
+lxml>=4.9.3
