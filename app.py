@@ -39,11 +39,24 @@ def process_report_card(filepath):
     """Process the uploaded .docx file and apply conversion rules."""
     doc = Document(filepath)
 
-    # ✅ Process paragraphs (for individual course titles in text)
+    # ✅ Print before processing for debugging
+    print("\n🔍 Before Processing:")
     for para in doc.paragraphs:
-        para.text = apply_conversion_rules(para.text)
+        print(f"⏳ {para.text}")
 
-    # ✅ Process tables (for course lists with grades & GPAs)
+    # ✅ Apply conversion rules to all paragraphs
+    for para in doc.paragraphs:
+        new_text = apply_conversion_rules(para.text)
+        if new_text != para.text:
+            para.clear()
+            para.add_run(new_text)
+
+    # ✅ Print after processing for debugging
+    print("\n✅ After Processing:")
+    for para in doc.paragraphs:
+        print(f"🎯 {para.text}")
+
+    # ✅ Process tables (to remove duplicates and clean course titles)
     for table in doc.tables:
         process_table(table)
 
