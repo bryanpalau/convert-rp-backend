@@ -57,17 +57,16 @@ def process_report_card(filepath):
 
 def apply_conversion_rules(text):
     """Applies all conversion rules to a given text."""
-
     # ✅ Remove Grade Level Prefixes
     text = re.sub(r'\b(G\d{1,2}[-\d]*|Grade \d{1,2}|[1-9]0)\b', '', text).strip()
 
-    # ✅ Remove Course Group Labels (Electives, Senior Electives, Career Planning)
-    text = re.sub(r'\b(Senior Electives-|Electives \d+ \(G\d+\)-|Career Planning \d+-\d+|Junior Electives-)\b', '', text).strip()
+    # ✅ Remove Course Group Labels
+    text = re.sub(r'\b(Senior Electives-|Electives \d+ \(G\d+\)-|Career Planning \d+-\d+|Junior Electives-|Study Hall-)\b', '', text).strip()
 
     # ✅ Simplify Course Titles
     text = re.sub(r'\b(G\d{1,2}-|G\d{1,2} )\b', '', text).strip()
 
-    # ✅ Remove "Study Hall" courses
+    # ✅ Remove "Study Hall" courses completely
     if "Study Hall" in text:
         return ""  # Remove entire course
 
