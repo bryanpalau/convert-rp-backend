@@ -33,66 +33,75 @@ def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def clean_course_title(title: str) -> str:
-    """Clean course title according to conversion rules."""
+    """Enhanced course title cleaning with more precise rules."""
     if not title or 'Study Hall' in title:
         return ''
+        
+    title = title.strip()
     
-    # Remove grade level prefixes
+    # Keep the '+' prefix for AP/Honors courses
+    has_plus = title.startswith('+')
+    if has_plus:
+        title = title[1:].strip()
+    
+    # Remove grade level and group prefixes more aggressively
     patterns = [
-        r'\b(?:G\d{1,2}[-\d]*|Grade \d{1,2}|\d{1,2}th Grade)\b',
-        r'\b(?:10|11|12)\b(?!\S)',  # Standalone grade numbers
-        r'-(?:1|2)(?!\S)',  # Semester indicators
-        r'\(G\d+(?:-\d+)?\)',  # Grade in parentheses
+        r'^Math \d+[A-Z]?(?:-\d+)?-',  # Math prefixes
+        r'^Science \d+[A-Z]?(?:-\d+)?-?',  # Science prefixes
+        r'(?:G|Grade )\d+(?:-\d+)?-',  # Grade indicators
+        r'^\d{1,2}(?:th)?\s*Grade\s*-?',  # Grade numbers
+        r'(?:Junior|Senior)\s+Electives-',  # Elective prefixes
+        r'Electives \d+ \([^)]+\)-',  # Elective group labels
+        r'Career Planning \d+(?:-\d+)?',  # Career Planning prefixes
+        r'Foreign Language-',  # Foreign Language prefix
+        r'Individual Society Environment(?:\s*G\d+(?:-\d+)?)?-?',  # ISE prefix
+        r'Military Training(?:\s*G\d+(?:-\d+)?)?-?',  # Military Training prefix
+        r'Visual Performing Arts(?:\s*G\d+(?:-\d+)?)?-?',  # VPA prefix
+        r'Group \d+-',  # Group numbers
+        r'\d+[A-Z](?:-\d+)?-?'  # Grade section indicators (e.g., 7A-2)
     ]
     
     for pattern in patterns:
-        title = re.sub(pattern, '', title)
-    
-    # Remove course group labels
-    group_patterns = [
-        r'^(?:Senior|Junior)?\s*Electives[-\s]?\d*\s*-\s*',
-        r'^Career Planning\s*(?:\d+[-\d]*\s*)?-\s*',
-        r'^Study Hall\s*-\s*',
-        r'^Foreign Language\s*-\s*',
-        r'^Individual Society Environment\s*(?:G\d+[-\d]*\s*)?-\s*',
-        r'^Military Training\s*(?:G\d+[-\d]*\s*)?-\s*'
-    ]
-    
-    for pattern in group_patterns:
-        title = re.sub(pattern, '', title)
+        title = re.sub(pattern, '', title, flags=re.IGNORECASE)
     
     # Clean up multiple spaces and hyphens
     title = re.sub(r'\s+', ' ', title)
     title = re.sub(r'-+', '-', title)
+    title = title.strip(' -')
     
-    return title.strip()
+    # Add back the '+' prefix if it existed
+    if has_plus:
+        title = '+ ' + title
+        
+    return title
 
 def process_table(table) -> None:
-    """Process table while maintaining grade/GPA values and handling duplicates."""
-    courses_by_semester = {}  # Store courses by semester
+    """Process table with improved duplicate handling."""
+    courses_by_semester = {}
     current_semester = None
     
     # First pass: collect and clean data
     for row in table.rows:
         cells = [cell.text.strip() for cell in row.cells]
         
+        # Skip rows that don't have enough cells or are headers
+        if len(cells) < 3 or any(header in cells[0].lower() for header in ['course title', 'average']):
+            continue
+            
         # Detect semester headers
         if any(sem in ' '.join(cells).upper() for sem in ['1ST SEMESTER', '2ND SEMESTER']):
             current_semester = '1st' if '1ST SEMESTER' in ' '.join(cells).upper() else '2nd'
             continue
             
-        if len(cells) < 3:  # Skip rows without enough cells
-            continue
-            
         course_title, grade, gpa = cells[0], cells[1], cells[2]
         
-        # Skip header rows or empty rows
-        if course_title.lower() in ['course title', ''] or not grade.replace('.', '').isdigit():
+        # Skip empty rows or non-numeric grades
+        if not course_title or not grade.replace('.', '').isdigit():
             continue
             
         # Apply conversion rules
         clean_title = clean_course_title(course_title)
-        if not clean_title:  # Skip if course was removed
+        if not clean_title:  # Skip if course was removed (e.g., Study Hall)
             continue
             
         # Store processed course with original grade and GPA
@@ -101,22 +110,22 @@ def process_table(table) -> None:
             
         courses_by_semester[current_semester].append({
             'title': clean_title,
-            'grade': grade,  # Preserve original grade
-            'gpa': gpa      # Preserve original GPA
+            'grade': grade,
+            'gpa': gpa
         })
     
     # Process courses, keeping those with different grades or GPAs
     for semester in courses_by_semester:
         unique_courses = []
-        seen_exact_duplicates = set()  # Track exact duplicates only
+        seen_exact_matches = set()
         
         for course in courses_by_semester[semester]:
             # Create key with all three values to check for exact duplicates
             course_key = (course['title'], course['grade'], course['gpa'])
             
-            if course_key not in seen_exact_duplicates:
+            if course_key not in seen_exact_matches:
                 unique_courses.append(course)
-                seen_exact_duplicates.add(course_key)
+                seen_exact_matches.add(course_key)
         
         courses_by_semester[semester] = unique_courses
     
