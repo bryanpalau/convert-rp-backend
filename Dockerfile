@@ -1,5 +1,5 @@
 # Use a lightweight Python image
-FROM python:3.9-slim
+FROM python:3.11-slim  # Upgraded to latest Python for better performance
 
 # Set the working directory
 WORKDIR /app
@@ -7,12 +7,11 @@ WORKDIR /app
 # Copy necessary files
 COPY . /app
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install gunicorn  # <-- Ensure Gunicorn is installed
+# Install dependencies efficiently
+RUN pip install --no-cache-dir -r requirements.txt && pip install gunicorn
 
 # Expose the port Flask runs on
 EXPOSE 5000
 
-# Start Gunicorn
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
+# Start Gunicorn with 4 worker processes for better performance
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "-w", "4", "app:app"]

@@ -26,6 +26,7 @@ CORS(app)
 
 TEMP_DIR = tempfile.gettempdir()
 ALLOWED_EXTENSIONS = {'docx', 'pdf'}
+BACKEND_URL = "https://convert-rp-backend.vercel.app/upload"  # Ensure frontend URL matches
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -67,6 +68,8 @@ def clean_course_title(title):
 
 def process_table(table):
     seen_courses = set()
+    rows_to_remove = []
+    
     for row in table.rows[1:]:
         cells = row.cells
         if len(cells) >= 3:
@@ -75,17 +78,23 @@ def process_table(table):
             grade = cells[1].text.strip()
             gpa = cells[2].text.strip()
             if not cleaned_title:
+                rows_to_remove.append(row)
                 continue
             
             logger.debug(f"Processing row - Original: {original_title}, Cleaned: {cleaned_title}, Grade: {grade}, GPA: {gpa}")
             
             course_key = (cleaned_title, grade, gpa)
             if course_key in seen_courses:
-                table._element.getparent().remove(row._element)
+                rows_to_remove.append(row)
                 logger.debug(f"Duplicate course removed: {cleaned_title}")
             else:
                 seen_courses.add(course_key)
                 cells[0].text = cleaned_title
+    
+    for row in rows_to_remove:
+        tbl = row._element.getparent()
+        tbl.remove(row._element)
+        logger.debug("Row removed from table")
 
 def process_report_card(filepath, output_format='docx'):
     try:
@@ -101,6 +110,10 @@ def process_report_card(filepath, output_format='docx'):
         
         output_path = os.path.join(TEMP_DIR, f"processed_{os.path.basename(filepath)}")
         doc.save(output_path)
+        
+        if not os.path.exists(output_path):
+            logger.error("Failed to save processed document")
+            return None
         
         if output_format == 'pdf':
             pdf_output_path = output_path.replace('.docx', '.pdf')
