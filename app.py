@@ -22,7 +22,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
 
 TEMP_DIR = tempfile.gettempdir()
 ALLOWED_EXTENSIONS = {'docx', 'pdf'}
@@ -102,7 +109,7 @@ def process_report_card(filepath, output_format='docx'):
         return output_path
     except Exception as e:
         logger.error(f"Error processing document: {str(e)}")
-        raise
+        return None
 
 @app.route("/")
 def home():
@@ -127,6 +134,9 @@ def upload_file():
         
         output_format = request.args.get("format", "docx")
         processed_filepath = process_report_card(input_file, output_format)
+        
+        if not processed_filepath:
+            return jsonify({"error": "Failed to process file"}), 500
         
         return send_file(
             processed_filepath,
