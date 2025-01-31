@@ -1,17 +1,16 @@
 {
   "version": 2,
   "functions": {
-    "app.py": {
+    "api/app.py": {
       "runtime": "python@3.9"
     }
   },
   "routes": [
     {
       "src": "/upload",
-      "dest": "/app.py"
+      "dest": "/api/app.py"
     }
   ],
-  "builds": [],
   "env": {
     "PYTHONUNBUFFERED": "1"
   }
