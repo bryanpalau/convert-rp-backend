@@ -10,5 +10,9 @@
       "src": "/upload",
       "dest": "/app.py"
     }
-  ]
+  ],
+  "builds": [],
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  }
 }
