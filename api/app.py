@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path="/api")
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 TEMP_DIR = tempfile.gettempdir()
@@ -106,7 +106,7 @@ def process_report_card(filepath):
 def home():
     return "Flask backend is running!", 200
 
-@app.route("/upload", methods=["POST", "OPTIONS"])
+@app.route("/api/upload", methods=["POST", "OPTIONS"])
 def upload_file():
     if request.method == "OPTIONS":
         response = jsonify({"message": "CORS preflight passed"})
@@ -144,4 +144,4 @@ def upload_file():
 
 if __name__ == "__main__":
     from waitress import serve
-    serve(app, host="0.0.0.0", port=5000)
+    serve(app, host="0.0.0.0", port=5001)
