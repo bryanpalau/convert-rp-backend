@@ -9,9 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from docx import Document
-from docx.shared import Pt
-import pdfkit
-from pdf2docx import Converter
 
 # Configure detailed logging
 logging.basicConfig(
@@ -38,12 +35,12 @@ def clean_course_title(title):
     title = title[1:].strip() if has_plus else title.strip()
     
     patterns = [
-        r'\bG\d+(-\d+)?(?=\s|$|\()',  
-        r'\b(?:Grade\s*)?\d{1,2}(?:th)?\s*(?:Grade\s*)?(?:-\d+)?(?=\s|$)',  
-        r'^(?:Senior|Junior)?\s*Electives\s*\d*-?',
+        r'\bG\d+(-\d+)?(?=\s|$|\()',  # Removes "G10", "G10-2"
+        r'\b(?:Grade\s*)?\d{1,2}(?:th)?\s*(?:Grade\s*)?(?:-\d+)?(?=\s|$)',  # "Grade 10", "10"
+        r'^(?:Senior|Junior)?\s*Electives\s*\d*-?',  # "Senior Electives-", "Electives 1 (G11)-"
         r'\s*Group\s*\d+\s*-',
-        r'-\d+(\s|$)',
-        r'\s*\([^)]*\)',
+        r'-\d+(\s|$)',  # Removes semester indicators "-1", "-2"
+        r'\s*\([^)]*\)',  # Removes any text inside parentheses
         r'\s*-\s*(?=\S)',
         r'\s+-\s*$',
     ]
@@ -67,11 +64,12 @@ def process_table(table):
             cleaned_title = clean_course_title(original_title)
             grade = cells[1].text.strip()
             gpa = cells[2].text.strip()
+            
             if not cleaned_title:
                 rows_to_remove.append(row)
                 continue
             
-            course_key = (cleaned_title, grade, gpa)
+            course_key = (cleaned_title.lower(), grade, gpa)  # Normalize casing
             if course_key in seen_courses:
                 rows_to_remove.append(row)
             else:
@@ -143,7 +141,6 @@ def upload_file():
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
         return jsonify({"error": "Server encountered an error"}), 500
-
 
 if __name__ == "__main__":
     from waitress import serve
