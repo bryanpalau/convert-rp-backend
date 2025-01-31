@@ -56,183 +56,183 @@ def copy_cell_format(source_cell, target_cell):
         logger.warning(f"Error copying cell format: {str(e)}")
 
 def clean_course_title(title: str) -> str:
-    """Enhanced course title cleaning with more precise rules."""
-    logger.debug(f"Cleaning course title: {title}")
-    
+    """
+    Clean course title according to specified rules.
+    """
     if not title or 'Study Hall' in title:
-        logger.debug("Empty title or Study Hall course - skipping")
         return ''
         
-    title = title.strip()
-    
-    # Keep the '+' prefix for AP/Honors courses
+    # Store and remove '+' prefix (for AP/Honors courses)
     has_plus = title.startswith('+')
-    if has_plus:
-        title = title[1:].strip()
-        logger.debug("Found '+' prefix, temporarily removed")
+    title = title[1:].strip() if has_plus else title.strip()
     
-    # Remove grade level and group prefixes more aggressively
     patterns = [
-        r'^Math \d+[A-Z]?(?:-\d+)?-?',  # Math prefixes
-        r'^Science \d+[A-Z]?(?:-\d+)?-?',  # Science prefixes
-        r'(?:G|Grade )\d+(?:-\d+)?-?',  # Grade indicators
-        r'^\d{1,2}(?:th)?\s*Grade\s*-?',  # Grade numbers
-        r'(?:Junior|Senior)\s+Electives-?',  # Elective prefixes
-        r'Electives\s*\d*\s*\([^)]+\)-?',  # Elective group labels
-        r'Career Planning\s*\d+(?:-\d+)?',  # Career Planning prefixes
-        r'Foreign Language-?',  # Foreign Language prefix
-        r'Individual Society Environment(?:\s*G\d+(?:-\d+)?)?-?',  # ISE prefix
-        r'Military Training(?:\s*G\d+(?:-\d+)?)?-?',  # Military Training prefix
-        r'Visual Performing Arts(?:\s*G\d+(?:-\d+)?)?-?',  # VPA prefix
-        r'Group\s*\d+-?',  # Group numbers
-        r'\d+[A-Z](?:-\d+)?-?',  # Grade section indicators (e.g., 7A-2)
-        r'-\d+$',  # Trailing numbers
-        r'\s*\([^)]*\)',  # Anything in parentheses
-        r'\s*G\d+(?:-\d+)?(?:\s|$)'  # Grade indicators at the end
+        # Grade indicators with section
+        r'\bG\d+(?:-\d+)?(?=\s|$|\()',  # G10-2, G11-1
+        r'\b(?:Grade\s*)?\d{1,2}(?:th)?\s*(?:Grade\s*)?(?:-\d+)?(?=\s|$)',  # 10, Grade 10, 10th Grade
+        
+        # Course group labels
+        r'^(?:Senior|Junior)?\s*Electives\s*\d*\s*(?:\([^)]+\))?-',  # Senior Electives-, Electives 1 (G11)-
+        r'^(?:Math|Science)\s+\d+[A-Z]?(?:-\d+)?-(?:\s*Group\s*\d+)?-?',  # Math 7A-2-, Science 8A-1-
+        
+        # Department prefixes
+        r'^Career Planning\s*\d+(?:-\d+)?-?',
+        r'^Visual Performing Arts\s*(?:G\d+(?:-\d+)?)?-',
+        r'^Individual Society Environment\s*(?:G\d+(?:-\d+)?)?-',
+        r'^Foreign Language-',
+        r'^Military Training\s*(?:G\d+(?:-\d+)?)?-',
+        r'^Social Studies-',
+        
+        # Group and section identifiers
+        r'\s*Group\s*\d+\s*-',  # Group 1-
+        r'-\d+(?:\s|$)',  # trailing -1, -2
+        r'\s*\([^)]*\)',  # anything in parentheses
+        
+        # Clean up remaining patterns
+        r'\s*-\s*(?=\S)',  # standalone hyphens with content after
+        r'\s+-\s*$',  # trailing hyphens
     ]
     
+    # Apply patterns in sequence
     for pattern in patterns:
-        original_title = title
+        original = title
         title = re.sub(pattern, '', title, flags=re.IGNORECASE)
-        if original_title != title:
-            logger.debug(f"Applied pattern '{pattern}': '{original_title}' -> '{title}'")
+        if original != title:
+            logger.debug(f"Pattern '{pattern}' changed '{original}' to '{title}'")
     
-    # Clean up multiple spaces and hyphens
+    # Clean up whitespace and multiple hyphens
     title = re.sub(r'\s+', ' ', title)
     title = re.sub(r'-+', '-', title)
     title = title.strip(' -')
     
-    # Add back the '+' prefix if it existed
-    if has_plus:
-        title = '+ ' + title
-        logger.debug("Restored '+' prefix")
-    
-    logger.debug(f"Final cleaned title: {title}")
-    return title
+    # Restore '+' prefix if it existed
+    return f"+ {title}" if has_plus else title
 
 def process_table(table) -> None:
-    """Process table with improved duplicate handling."""
-    logger.debug("Starting table processing")
-    courses_by_semester = {}
+    """
+    Process table content with improved duplicate handling.
+    """
+    courses_by_semester = {'1st': [], '2nd': []}
     current_semester = None
-    header_row = None
+    header_row = table.rows[0]  # Store header row
     
-    # First pass: collect and clean data
+    # First pass: collect course data
     for row_index, row in enumerate(table.rows):
         cells = [cell.text.strip() for cell in row.cells]
         
-        if len(cells) > 0:
-            logger.debug(f"Processing row {row_index}: {cells}")
-        
-        # Store header row for formatting
+        # Skip header row
         if row_index == 0:
-            header_row = row
             continue
-        
+            
         # Detect semester headers
         if len(cells) > 0:
             semester_text = ' '.join(cells).upper()
             if 'SEMESTER' in semester_text:
-                if '1ST' in semester_text or 'FIRST' in semester_text:
+                if any(x in semester_text for x in ['1ST', 'FIRST']):
                     current_semester = '1st'
-                elif '2ND' in semester_text or 'SECOND' in semester_text:
+                elif any(x in semester_text for x in ['2ND', 'SECOND']):
                     current_semester = '2nd'
                 logger.debug(f"Detected semester: {current_semester}")
                 continue
         
-        # Skip rows that don't have enough cells or are headers
-        if len(cells) < 3 or any(header in cells[0].lower() for header in ['course title', 'average']):
-            logger.debug(f"Skipping row {row_index} - not enough cells or header")
+        # Skip invalid rows
+        if len(cells) < 3 or not current_semester:
             continue
             
         try:
-            course_title, grade, gpa = cells[0], cells[1], cells[2]
-            logger.debug(f"Original course title: {course_title}")
+            course_title = cells[0].strip()
+            grade = cells[1].strip()
+            gpa = cells[2].strip()
             
-            # Skip empty rows or non-numeric grades
+            # Skip rows with invalid data
             if not course_title or not grade.replace('.', '').isdigit():
-                logger.debug(f"Skipping row - empty title or non-numeric grade")
                 continue
                 
-            # Apply conversion rules
+            # Clean course title
             clean_title = clean_course_title(course_title)
-            logger.debug(f"Cleaned course title: {clean_title}")
-            
-            if not clean_title:  # Skip if course was removed
-                logger.debug("Course removed - skipping")
+            if not clean_title:  # Skip empty or removed courses
+                logger.debug(f"Skipping removed course: {course_title}")
                 continue
                 
-            # Store processed course
-            if current_semester not in courses_by_semester:
-                courses_by_semester[current_semester] = []
-                
+            # Store course data with original formatting
             courses_by_semester[current_semester].append({
                 'title': clean_title,
                 'grade': grade,
                 'gpa': gpa,
-                'original_row': row  # Store original row for formatting
+                'original_row': row
             })
-            logger.debug(f"Added course to semester {current_semester}")
+            logger.debug(f"Added course: {clean_title} (Grade: {grade}, GPA: {gpa})")
             
         except Exception as e:
             logger.error(f"Error processing row: {str(e)}")
             continue
     
-    logger.debug("Processing duplicates")
-    # Process courses, keeping those with different grades or GPAs
+    # Second pass: handle duplicates
     for semester in courses_by_semester:
-        unique_courses = []
-        seen_exact_matches = set()
-        
+        # Group courses by cleaned title
+        courses_by_title = {}
         for course in courses_by_semester[semester]:
-            course_key = (course['title'], course['grade'], course['gpa'])
-            
-            if course_key not in seen_exact_matches:
-                unique_courses.append(course)
-                seen_exact_matches.add(course_key)
-                logger.debug(f"Keeping course: {course_key}")
-            else:
-                logger.debug(f"Removing duplicate: {course_key}")
+            title = course['title']
+            if title not in courses_by_title:
+                courses_by_title[title] = []
+            courses_by_title[title].append(course)
+        
+        # Process each group of courses
+        unique_courses = []
+        for title, course_group in courses_by_title.items():
+            if len(course_group) == 1:
+                unique_courses.append(course_group[0])
+                continue
                 
+            # Group by grade and GPA
+            seen = set()
+            for course in course_group:
+                key = (course['grade'], course['gpa'])
+                if key not in seen:
+                    unique_courses.append(course)
+                    seen.add(key)
+                else:
+                    logger.debug(f"Removing duplicate: {title} {key}")
+        
         courses_by_semester[semester] = unique_courses
     
+    # Rebuild table
     try:
-        logger.debug("Rebuilding table")
-        # Clear existing table content while preserving formatting
-        while len(table.rows) > 1:  # Keep header
+        # Clear existing content except header
+        while len(table.rows) > 1:
             table._element.remove(table.rows[-1]._element)
         
-        # Rebuild table with processed courses
+        # Add processed courses
         for semester, courses in courses_by_semester.items():
             if not courses:
                 continue
                 
-            logger.debug(f"Adding semester {semester} with {len(courses)} courses")
-            
             # Add semester header
             semester_row = table.add_row()
             semester_cell = semester_row.cells[0]
             semester_cell.text = f"{semester} Semester"
-            semester_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if len(semester_cell.paragraphs) > 0:
+                semester_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # Add processed courses
+            # Add courses
             for course in courses:
                 new_row = table.add_row()
                 
-                # Copy cell formats from original row if available
+                # Copy formatting from original row if available
                 if 'original_row' in course:
                     for i, (new_cell, old_cell) in enumerate(zip(new_row.cells, course['original_row'].cells)):
                         copy_cell_format(old_cell, new_cell)
                 
+                # Set content
                 new_row.cells[0].text = course['title']
                 new_row.cells[1].text = course['grade']
                 new_row.cells[2].text = course['gpa']
-                logger.debug(f"Added course row: {course}")
                 
                 # Center align grade and GPA cells
                 for cell in new_row.cells[1:]:
-                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                
+                    if len(cell.paragraphs) > 0:
+                        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    
     except Exception as e:
         logger.error(f"Error rebuilding table: {str(e)}")
         raise
@@ -279,7 +279,6 @@ def upload_file():
         # Create unique filenames
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         input_file = temp_dir / f"input_{timestamp}_{secure_filename(file.filename)}"
-        output_file = temp_dir / f"output_{timestamp}_{secure_filename(file.filename)}"
         
         logger.debug(f"Saving input file to {input_file}")
         file.save(str(input_file))
