@@ -24,13 +24,6 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-@app.after_request
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    return response
-
 TEMP_DIR = tempfile.gettempdir()
 ALLOWED_EXTENSIONS = {'docx', 'pdf'}
 
@@ -42,6 +35,7 @@ def convert_pdf_to_docx(pdf_path):
     cv = Converter(pdf_path)
     cv.convert(docx_path, start=0, end=None)
     cv.close()
+    logger.debug(f"Converted PDF to DOCX: {docx_path}")
     return docx_path
 
 def clean_course_title(title):
@@ -68,6 +62,7 @@ def clean_course_title(title):
     
     title = re.sub(r'\s+', ' ', title).strip('- ')
     
+    logger.debug(f"Course title cleaned: {title}")
     return f"+ {title}" if has_plus else title
 
 def process_table(table):
@@ -75,15 +70,19 @@ def process_table(table):
     for row in table.rows[1:]:
         cells = row.cells
         if len(cells) >= 3:
-            cleaned_title = clean_course_title(cells[0].text.strip())
+            original_title = cells[0].text.strip()
+            cleaned_title = clean_course_title(original_title)
             grade = cells[1].text.strip()
             gpa = cells[2].text.strip()
             if not cleaned_title:
                 continue
             
+            logger.debug(f"Processing row - Original: {original_title}, Cleaned: {cleaned_title}, Grade: {grade}, GPA: {gpa}")
+            
             course_key = (cleaned_title, grade, gpa)
             if course_key in seen_courses:
                 table._element.getparent().remove(row._element)
+                logger.debug(f"Duplicate course removed: {cleaned_title}")
             else:
                 seen_courses.add(course_key)
                 cells[0].text = cleaned_title
@@ -94,7 +93,10 @@ def process_report_card(filepath, output_format='docx'):
             filepath = convert_pdf_to_docx(filepath)
         
         doc = Document(filepath)
+        logger.debug("Document loaded successfully")
+        
         for table in doc.tables:
+            logger.debug("Processing table...")
             process_table(table)
         
         output_path = os.path.join(TEMP_DIR, f"processed_{os.path.basename(filepath)}")
@@ -103,6 +105,7 @@ def process_report_card(filepath, output_format='docx'):
         if output_format == 'pdf':
             pdf_output_path = output_path.replace('.docx', '.pdf')
             pdfkit_config = pdfkit.configuration(wkhtmltopdf='/usr/local/bin/wkhtmltopdf' if os.path.exists('/usr/local/bin/wkhtmltopdf') else '/opt/homebrew/bin/wkhtmltopdf')
+            logger.debug(f"Using wkhtmltopdf at: {pdfkit_config}")
             pdfkit.from_file(output_path, pdf_output_path, configuration=pdfkit_config)
             return pdf_output_path
         
@@ -114,10 +117,6 @@ def process_report_card(filepath, output_format='docx'):
 @app.route("/")
 def home():
     return "Flask backend is running!", 200
-
-@app.route("/favicon.ico")
-def favicon():
-    return "", 204
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
@@ -132,6 +131,8 @@ def upload_file():
         input_file = os.path.join(TEMP_DIR, secure_filename(file.filename))
         file.save(input_file)
         
+        logger.debug(f"File uploaded: {input_file}")
+        
         output_format = request.args.get("format", "docx")
         processed_filepath = process_report_card(input_file, output_format)
         
@@ -141,7 +142,7 @@ def upload_file():
         return send_file(
             processed_filepath,
             as_attachment=True,
-            download_name=f"converted.{output_format}",
+            download_name=f"converted_{secure_filename(file.filename)}",
             mimetype="application/pdf" if output_format == "pdf" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
     except Exception as e:
