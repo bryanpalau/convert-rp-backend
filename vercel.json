@@ -12,6 +12,16 @@
       "dest": "api/app.py"
     }
   ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://bryanpalau.github.io" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS, POST" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
+      ]
+    }
+  ],
   "env": {
     "PYTHONUNBUFFERED": "1"
   }
